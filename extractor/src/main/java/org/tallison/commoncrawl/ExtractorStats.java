@@ -84,6 +84,7 @@ public class ExtractorStats {
         StringBuilder sb = new StringBuilder();
         long actualFinish = (finish == -1) ? new Date().getTime() : finish;
         sb.append("Total time: "+(((double)actualFinish-(double)start)/1000.0) + " seconds\n");
+        sb.append("I read through " + warcs.size() + " warc files\n");
         sb.append("There were "+truncatedRecord + " truncated records\n");
         sb.append("I visited: "+visitedRecords + " records\n");
         sb.append("I extracted: " + extractedRecord+" records\n");
