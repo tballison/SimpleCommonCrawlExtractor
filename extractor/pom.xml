@@ -28,9 +28,8 @@
     </parent>
 
     <artifactId>cc-extractor</artifactId>
-    <packaging>bundle</packaging>
 
-    <name>Simple WARC Extractor Wrapper</name>
+    <name>Simple WARC org.tallison.commoncrawl.Extractor Wrapper</name>
     <description>
         Simple wrapper for extraction of binaries from WARC files
     </description>
@@ -41,6 +40,17 @@
             <groupId>org.netpreserve.commons</groupId>
             <artifactId>webarchive-commons</artifactId>
             <version>1.1.6</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-codec</groupId>
+                    <artifactId>commons-codec</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.10</version>
         </dependency>
         <dependency>
             <groupId>org.apache.tika</groupId>
@@ -56,42 +66,52 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>**/*.properties</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>false</filtering>
-                <excludes>
-                    <exclude>**/*.properties</exclude>
-                </excludes>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>
+                                false
+                            </createDependencyReducedPom>
+                            <!-- <filters> -->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-remote-resources-plugin</artifactId>
+                <version>1.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>bundle</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
-                    <argLine>-Xmx768m</argLine>
-                    <systemPropertyVariables>
-                        <java.util.logging.config.file>src/test/resources/logging.properties</java.util.logging.config.file>
-                    </systemPropertyVariables>
+                    <includes>
+                        <include>**/*.xml</include>
+                    </includes>
                 </configuration>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
-                        <Include-Resource>
-                            {maven-resources},
-                            META-INF=target/maven-shared-archive-resources/META-INF,
-                        </Include-Resource>
+                        <Bundle-DocURL>${project.url}</Bundle-DocURL>
+                        <Bundle-Activator>
+                            org.apache.tika.config.TikaActivator
+                        </Bundle-Activator>
+                        <Bundle-ActivationPolicy>lazy</Bundle-ActivationPolicy>
                     </instructions>
                 </configuration>
             </plugin>
@@ -100,11 +120,42 @@
                 <artifactId>apache-rat-plugin</artifactId>
                 <configuration>
                     <excludes>
+                        <exclude>src/test/resources/org/apache/tika/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>2.10</version>
+                <configuration>
+                    <additionalClasspathElements>
+                        <additionalClasspathElement>
+                            ${project.build.directory}/${project.build.finalName}.jar
+                        </additionalClasspathElement>
+                    </additionalClasspathElements>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
-    </build>
 
+    </build>
 </project>
 

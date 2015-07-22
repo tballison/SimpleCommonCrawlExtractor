@@ -30,7 +30,7 @@
     <artifactId>pdfbox-reactor</artifactId>
     <packaging>pom</packaging>
 
-    <name>Simple WARC Extractor Wrapper Project</name>
+    <name>Simple WARC org.tallison.commoncrawl.Extractor Wrapper Project</name>
 
     <modules>
         <module>parent</module>
