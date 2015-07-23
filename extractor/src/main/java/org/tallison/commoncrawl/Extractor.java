@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.codec.binary.Base32;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.httpclient.Header;
 import org.apache.commons.io.IOUtils;
 import org.apache.tika.config.TikaConfig;
@@ -56,6 +58,7 @@ public class Extractor {
     private final static Pattern URL_EXTENSION_PATTERN =
             Pattern.compile("(?i)\\.([a-z0-9]{1,8})(?:\\Z|[ \\?])");
 
+    private final Base32 base32 = new Base32();
     private final ExtractorConfig config;
     private final Detector detector;
     private final TikaConfig tikaConfig;
@@ -226,7 +229,9 @@ public class Extractor {
         }
 
         String digest = getDigest(record);
-
+        if (digest == null) {
+            digest = digest(raw.toByteArray());
+        }
         String extension = pickExtension(urlExtension, httpMediaType, detectedMediaType);
         Path outFile = getOutputFile(digest, extension);
         if (! config.isOverwrite() && Files.exists(outFile)) {
@@ -240,6 +245,10 @@ public class Extractor {
         os.flush();
         os.close();
         extractorStats.extractedRecord();
+    }
+
+    private String digest(byte[] bytes) {
+        return base32.encodeToString(DigestUtils.sha1(bytes));
     }
 
     private String pickExtension(String urlExtension, MediaType httpMediaType, MediaType detectedMediaType) {
