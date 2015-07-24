@@ -8,7 +8,7 @@ actual processing!!!
 I'm under no illusion that this capability doesn't already exist...probably 
 even with IIPC's Web Commons!
 
-The inspiration for this came from Dominik Stadtler's 
+The inspiration for this came from Dominik Stadler's
 [CommonCrawlDocumentDownload](https://github.com/centic9/CommonCrawlDocumentDownload).
 
 This tool requires a local repository of warcs...it does not do streaming processing...
