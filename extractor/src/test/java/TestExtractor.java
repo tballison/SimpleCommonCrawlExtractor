@@ -15,15 +15,35 @@
  * limitations under the License.
  */
 
-import org.apache.tika.mime.MediaType;
-import org.junit.Test;
-import org.tallison.commoncrawl.Extractor;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
+import org.apache.tika.mime.MediaType;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.tallison.cc.warc.Extractor;
+import org.tallison.cc.warc.ExtractorConfig;
+
+@Ignore
 public class TestExtractor {
+    //these unfortunately are pseudo tests used for dev only
+    //TODO: add real tests
+
     @Test
     public void testMimes() {
         Extractor ex = new Extractor(null);
         MediaType mt = MediaType.parse("application/xml; charset=UTF-8");
-        System.out.println(ex.getExtension(mt));
+        //System.out.println(ex.getExtension(mt));
+    }
+
+    @Test
+    public void testExtract() throws IOException {
+        Path warcFile = Paths.get("C:/data/warcwork/warcs");
+        Path outDir = Paths.get("C:/data/warcwork/testOut");
+        ExtractorConfig config = new ExtractorConfig(warcFile, outDir);
+        config.setIncludeTruncated(false);
+        Extractor ex = new Extractor(config);
+        ex.execute();
     }
 }

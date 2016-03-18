@@ -1,4 +1,4 @@
-package org.tallison.commoncrawl;/*
+package org.tallison.cc.warc;/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -36,7 +36,8 @@ public class ExtractorConfig {
     int numBytesToSniffForDetection = 1000;
     boolean defaultInclude = false;
     boolean overwrite = false;
-    private boolean includeTruncated;
+    boolean includeTruncated;
+    boolean extractTruncatedURLs;
 
     public ExtractorConfig(Path warcPath, Path outputDir) {
         this.warcPath = warcPath;

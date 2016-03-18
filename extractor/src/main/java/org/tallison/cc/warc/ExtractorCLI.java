@@ -1,4 +1,4 @@
-package org.tallison.commoncrawl;/*
+package org.tallison.cc.warc;/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -31,7 +31,7 @@ public class ExtractorCLI {
 
     private static Options getOptions() {
         Options options = new Options();
-        options.addOption("w", "warc", true, "ward file or directory containing warc files");
+        options.addOption("w", "warc", true, "warc file or directory containing warc files");
         options.addOption("o", "output", true, "output directory");
         options.addOption("ih", "include-http-header-mime-pattern", true,
                 "pattern to match http-header mimes for inclusion");

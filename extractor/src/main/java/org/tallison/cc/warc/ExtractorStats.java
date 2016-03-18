@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.tallison.commoncrawl;
+package org.tallison.cc.warc;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.tika.mime.MediaType;
-import utils.MapValueSorter;
+import org.tallison.utils.MapUtil;
 
 public class ExtractorStats {
     private Set<String> warcs = new HashSet<>();
@@ -89,11 +89,11 @@ public class ExtractorStats {
         sb.append("I visited: "+visitedRecords + " records\n");
         sb.append("I extracted: " + extractedRecord+" records\n");
         sb.append("Header mime counts:\n");
-        for (String m : MapValueSorter.sortByValue(httpHeaderMimes).keySet()) {
+        for (String m : MapUtil.sortByValueDesc(httpHeaderMimes).keySet()) {
             sb.append("\t"+m+": "+httpHeaderMimes.get(m)+"\n");
         }
         sb.append("\n\nDetected mime counts:");
-        for (String m : MapValueSorter.sortByValue(detectedMimes).keySet()) {
+        for (String m : MapUtil.sortByValueDesc(detectedMimes).keySet()) {
             sb.append("\t"+m+": "+detectedMimes.get(m)+"\n");
         }
         sb.append("\n");
