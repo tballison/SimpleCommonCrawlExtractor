@@ -64,6 +64,9 @@ public class AbstractRecordProcessor implements IndexRecordProcessor {
     protected List<CCIndexRecord> parseRecords(String row) {
         AtomicInteger i = new AtomicInteger(0);
         List<CCIndexRecord> records = new ArrayList<>();
+        //on some old indices, there was a rare bug that failed to separate
+        //lines by \n and I had a workaround at some point.
+        //This got too complicated given the rarity of the problem
         //for now turn off multi row splitting
         //while (i.get() < row.length()) {
             CCIndexRecord record = parseRecord(row, i);

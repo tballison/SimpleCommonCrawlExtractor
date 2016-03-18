@@ -29,6 +29,12 @@ import java.util.Map;
 
 import org.tallison.cc.index.CCIndexRecord;
 
+/**
+ * If you have a list of cc mimes and you want to look the original urls,
+ * use this.
+ * <p>
+ * This is useful if you have a truncated/corrupt file and you want to repull it.
+ */
 public class URLsFromDigestProcessor extends AbstractRecordProcessor {
 
     private final Map digests = new HashMap<>();

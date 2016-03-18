@@ -30,7 +30,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Created by TALLISON on 3/17/2016.
+ * This is the main driver for the mappers.
+ *
+ * Usage: java -cp xxx.jar CCIndexBatchReader &lt;numThreads&gt; &lt;cc_index_directory&gt; &lt;mapper_class&gt;
+ * &lt;mapper_class_args ...&gt;
  */
 public class CCIndexBatchReader {
 
@@ -38,7 +41,7 @@ public class CCIndexBatchReader {
         int numThreads = Integer.parseInt(args[0]);
         Path indexDir = Paths.get(args[1]);
         String pClass = args[2];
-        //load files into memory
+        //load index files into memory...there should only be 300 for now
         File[] gzs = indexDir.toFile().listFiles();
         numThreads = (gzs.length < numThreads) ? gzs.length : numThreads;
 

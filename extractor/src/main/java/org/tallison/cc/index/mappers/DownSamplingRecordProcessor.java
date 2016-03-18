@@ -32,6 +32,18 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.tallison.cc.index.CCIndexRecord;
 
+/**
+ * Class loads a tab-delimited file of mime\t<code>float</code>.
+ * It selects a record if a random float is at/below that threshold.
+ *
+ * This allows the user to set different sampling rates per mime
+ * type to generate a new sub-index for downloading, e.g. I only
+ * want .001% of "text/html" but I want 50% of "application/pdf"
+ *
+ * If a mime type does not exist in the sampling weights file, the index
+ * record is selected (or threshold value = 1.0f).
+ */
+
 public class DownSamplingRecordProcessor extends AbstractRecordProcessor {
     private static final String MIME_COL_HEADER = "mime";
     private static Gson gson = new GsonBuilder().create();

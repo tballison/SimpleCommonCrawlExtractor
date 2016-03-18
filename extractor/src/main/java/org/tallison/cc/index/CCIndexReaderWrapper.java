@@ -22,7 +22,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 
-public class CCIndexReaderWrapper implements Callable<Integer> {
+class CCIndexReaderWrapper implements Callable<Integer> {
     public static final Path POISON = Paths.get("");
 
     private final ArrayBlockingQueue<Path> queue;
