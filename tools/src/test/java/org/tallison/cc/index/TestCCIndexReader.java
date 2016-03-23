@@ -19,7 +19,7 @@ package org.tallison.cc.index;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.tallison.cc.index.reducers.ConcatReducer;
-import org.tallison.cc.index.reducers.MimeCountReducer;
+import org.tallison.cc.index.reducers.SingleKeyReducer;
 
 @Ignore("for local dev only...not actual unit tests yet")
 public class TestCCIndexReader {
@@ -94,7 +94,7 @@ public class TestCCIndexReader {
                 "C:\\data\\warcwork\\output_batch",
                 "C:\\data\\warcwork\\mimes_mapped.txt"
         };
-        MimeCountReducer.main(args);
+        SingleKeyReducer.main(args);
 
     }
 

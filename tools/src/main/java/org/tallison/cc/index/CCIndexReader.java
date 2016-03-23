@@ -61,6 +61,7 @@ public class CCIndexReader {
     }
 
     public static void main(String[] args) throws Exception {
+
         Path indexDir = Paths.get(args[0]);
         String pClass = args[1];
 

@@ -31,7 +31,7 @@ import org.tallison.utils.MapUtil;
 /**
  * Created by TALLISON on 3/17/2016.
  */
-public class MimeCountReducer {
+public class SingleKeyReducer {
 
     public static void main(String[] args) throws Exception {
         Path dir = Paths.get(args[0]);

@@ -43,6 +43,8 @@ public class WReGetter {
 
     private static void usage() {
         System.out.println("java -jar *.jar org.mitre.commoncrawl.WReGetter <numThreads> <digest_url_file> <outputdir>");
+        System.out.println("The <digest_url_file> is a tab-delimited UTF-8 file with no escaped tabs");
+        System.out.println("It has two columns: digest\\turl");
     }
 
     private void execute(String[] args) throws IOException {

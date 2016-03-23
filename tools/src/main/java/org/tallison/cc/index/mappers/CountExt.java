@@ -16,7 +16,6 @@
  */
 package org.tallison.cc.index.mappers;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -28,47 +27,27 @@ import java.util.List;
 import java.util.Map;
 
 import org.tallison.cc.index.CCIndexRecord;
+import org.tallison.utils.MapUtil;
 
-/**
- * If you have a list of cc mimes and you want to look the original urls,
- * use this.
- * <p>
- * This is useful if you have a truncated/corrupt file and you want to repull it.
- */
-public class URLsFromDigestProcessor extends AbstractRecordProcessor {
+public class CountExt extends AbstractRecordProcessor {
 
-    private final Map digests = new HashMap<>();
+    private Map<String, Integer> extensions = new HashMap<>();
     private Writer writer;
-
-    private int i;
-    Map<String, Integer> mimes = new HashMap<>();
-    int multiline = 0;
-
-    public URLsFromDigestProcessor() {
-    }
 
     @Override
     public void init(String[] args) throws Exception {
         super.init(args);
-        if (args.length != 2) {
-            throw new IllegalArgumentException("must have 2 arguments: digest file and output file");
-        }
-        digests.clear();
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(args[0]))) {
-            String line = reader.readLine();
-            while (line != null) {
-                digests.put(line.trim(), 1);
-                line = reader.readLine();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        Path targFile = Paths.get(args[1]).resolve("urls_"+getThreadNumber()+".txt");
+        Path targFile = Paths.get(args[0]).resolve("mime_counts_"+getThreadNumber()+".txt");
         Files.createDirectories(targFile.getParent());
         writer = Files.newBufferedWriter(targFile,
                 StandardCharsets.UTF_8);
 
+    }
+
+
+    @Override
+    public void usage() {
+        System.out.println("CountExt <output_directory>");
     }
 
     @Override
@@ -77,22 +56,30 @@ public class URLsFromDigestProcessor extends AbstractRecordProcessor {
         List<CCIndexRecord> records = parseRecords(row);
 
         for (CCIndexRecord r : records) {
-            String digest = r.getDigest();
-            if (digests.containsKey(digest)) {
-                digest = digest.replaceAll("[\t\r\n]", " ");
-                System.err.println("writing: "+digest);
-                writer.write(digest+"\t"+r.getUrl().replaceAll("[\t\n\r]+", " ")+"\n");
-                writer.flush();
+            String u = r.getUrl();
+            if (u == null)
+                continue;
+            String ext = getExtension(u);
+            ext = (ext == null) ? "NULL" : ext;
+            Integer c = extensions.get(ext);
+            if (c == null) {
+                c = new Integer(1);
+            } else {
+                c++;
             }
+            extensions.put(ext, c);
+
         }
     }
 
-
     @Override
     public void close() throws IOException {
-        System.err.println(getThreadNumber() + " is closing");
+        extensions = MapUtil.sortByValueDesc(extensions);
+        for (Map.Entry<String, Integer> e : extensions.entrySet()) {
+            writer.write(e.getKey() + "\t" + e.getValue()+"\n");
+        }
         writer.flush();
         writer.close();
-
     }
+
 }

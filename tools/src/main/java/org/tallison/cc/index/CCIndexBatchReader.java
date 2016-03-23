@@ -37,7 +37,25 @@ import java.util.concurrent.TimeUnit;
  */
 public class CCIndexBatchReader {
 
+    private final static String[] REDUCERS = {
+            "CountExt",
+            "CountExtByMime",
+            "CountMimeByExt",
+            "CountMimes",
+            "DownSample",
+            "FindURLsFromDigests"
+    };
+
+    private final static String PACKAGE_NAME = "org.tallison.cc.index.mappers";
+
     public void execute(String[] args) throws Exception {
+
+        if (args[0].equals("-h") || args[0].equals("--help")) {
+            usage();
+            System.exit(1);
+        }
+
+
         int numThreads = Integer.parseInt(args[0]);
         Path indexDir = Paths.get(args[1]);
         String pClass = args[2];
@@ -61,7 +79,7 @@ public class CCIndexBatchReader {
         List<IndexRecordProcessor> procs = new ArrayList<>();
 
         for (int i = 0; i < numThreads; i++) {
-            IndexRecordProcessor p = (IndexRecordProcessor) Class.forName(pClass).newInstance();
+            IndexRecordProcessor p = (IndexRecordProcessor) Class.forName(PACKAGE_NAME+"."+pClass).newInstance();
             p.init(newArgs);
             procs.add(p);
             completionService.submit(new CCIndexReaderWrapper(paths, p));
@@ -78,6 +96,14 @@ public class CCIndexBatchReader {
         executorService.shutdown();
         executorService.shutdownNow();
         System.exit(1);
+    }
+
+    private static void usage() {
+        System.out.println("java -jar cc-extractor.jar <number of reducers> <directory_of_index.gzs> <reducer_name> arguments for reducers....");
+        System.out.println("Available reducers include:");
+        for (String s : REDUCERS) {
+            System.out.println(s);
+        }
     }
 
     public static void main(String[] args) throws Exception {

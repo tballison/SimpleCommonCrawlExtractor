@@ -29,7 +29,7 @@ import java.util.Map;
 import org.tallison.cc.index.CCIndexRecord;
 import org.tallison.utils.MapUtil;
 
-public class MimeCounter extends AbstractRecordProcessor {
+public class CountMimes extends AbstractRecordProcessor {
 
     private Map<String, Integer> mimes = new HashMap<>();
     private Writer writer;
@@ -44,6 +44,10 @@ public class MimeCounter extends AbstractRecordProcessor {
 
     }
 
+    @Override
+    public void usage() {
+        System.out.println("CountMimes <output_directory>");
+    }
 
     @Override
     public void process(String row) throws IOException {

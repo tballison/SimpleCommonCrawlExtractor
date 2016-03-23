@@ -44,7 +44,7 @@ import org.tallison.cc.index.CCIndexRecord;
  * record is selected (or threshold value = 1.0f).
  */
 
-public class DownSamplingRecordProcessor extends AbstractRecordProcessor {
+public class DownSample extends AbstractRecordProcessor {
     private static final String MIME_COL_HEADER = "mime";
     private static Gson gson = new GsonBuilder().create();
 
@@ -55,7 +55,7 @@ public class DownSamplingRecordProcessor extends AbstractRecordProcessor {
     private final Map<String, Float> mimes = new HashMap<>();
     int multiline = 0;
 
-    public DownSamplingRecordProcessor() {}
+    public DownSample() {}
 
     @Override
     public void init(String[] args) throws Exception {
@@ -95,6 +95,13 @@ public class DownSamplingRecordProcessor extends AbstractRecordProcessor {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void usage() {
+        System.out.println("DownSample <sample_rates_file> <output_directory>");
+        System.out.println("Sample rates file should be a UTF-8 tab delimited file (with no escaped tabs)");
+        System.out.println("and it should have at least 2 columns: mime\tfloat");
     }
 
     @Override
