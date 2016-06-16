@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.hadoop.thirdparty.guava:guava:r09-jarjar">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/hadoop/thirdparty/guava/guava/r09-jarjar/guava-r09-jarjar.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/hadoop/thirdparty/guava/guava/r09-jarjar/guava-r09-jarjar-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/hadoop/thirdparty/guava/guava/r09-jarjar/guava-r09-jarjar-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

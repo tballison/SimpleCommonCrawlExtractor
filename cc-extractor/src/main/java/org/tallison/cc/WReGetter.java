@@ -17,6 +17,9 @@
 package org.tallison.cc;
 
 
+import org.apache.commons.codec.binary.Base32;
+import org.apache.commons.codec.digest.DigestUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,12 +32,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * wrapper around wget to run it multi-threaded/process and output
  * the file by mime name
  */
 public class WReGetter {
+    private final Base32 base32 = new Base32();
+    static AtomicInteger WGET_COUNTER = new AtomicInteger(0);
+
+
     private Path rootDir;
     public static void main(String[] args) throws Exception {
         WReGetter getter = new WReGetter();
@@ -60,13 +68,15 @@ public class WReGetter {
         BufferedReader r = Files.newBufferedReader(Paths.get(args[1]));
         ArrayBlockingQueue<DigestURLPair> queue = new ArrayBlockingQueue<DigestURLPair>(1000);
         QueueFiller filler = new QueueFiller(r, queue, numThreads);
-        filler.run();
+        new Thread(filler).start();
         rootDir = Paths.get(args[2]);
-
+        System.out.println("creating thread pool");
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
         ExecutorCompletionService<Integer> executorCompletionService = new ExecutorCompletionService<Integer>(executorService);
+        System.out.println("about to start");
 
         for (int i = 0; i < numThreads; i++) {
+            System.out.println("submitted "+i);
             executorCompletionService.submit(new WGetter(queue));
         }
 
@@ -106,9 +116,16 @@ public class WReGetter {
             try{
                 String line = reader.readLine();
                 while (line != null) {
+
                     String[] cols = line.split("\t");
-                    String digest = cols[0];
-                    String url = cols[1];
+                    String digest = null;
+                    String url = null;
+                    if (cols.length == 1) {
+                        url = cols[0];
+                    } else {
+                        digest = cols[0];
+                        url = cols[1];
+                    }
                     DigestURLPair p = new DigestURLPair(digest, url);
                     //hang forever
                     queue.put(p);
@@ -145,9 +162,11 @@ public class WReGetter {
         }
     }
     private class WGetter implements Callable<Integer> {
+        int id = WGET_COUNTER.getAndIncrement();
         final ArrayBlockingQueue<DigestURLPair> queue;
         WGetter(ArrayBlockingQueue<DigestURLPair> q) {
             this.queue = q;
+            System.out.println("WGETTER STARTED");
         }
 
 
@@ -156,6 +175,7 @@ public class WReGetter {
             while (true) {
                 try {
                     DigestURLPair p = queue.poll(1, TimeUnit.SECONDS);
+                    System.out.println("WGOT: "+id + " : " + p.url);
                     if (p instanceof DigestURLPairPoison) {
                         return 1;
                     }
@@ -167,16 +187,26 @@ public class WReGetter {
         }
 
         private void wget(DigestURLPair p) throws IOException {
+            System.out.println(id + " going to get 1 "+p.url);
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
-            Path targetPath = rootDir.resolve(p.digest.substring(0,2)+"/"+p.digest);
-            if (Files.isRegularFile(targetPath)) {
-                return;
+            String digest = p.digest;
+            Path targetPath = null;
+            boolean needToComputeDigest = false;
+            if (digest != null) {
+                targetPath = rootDir.resolve(p.digest.substring(0,2)+"/"+p.digest);
+                if (Files.isRegularFile(targetPath)) {
+                    return;
+                }
+                Files.createDirectories(targetPath.getParent());
+            } else {
+                targetPath = Files.createTempFile("wgetter", "tmp");
+                needToComputeDigest = true;
             }
-            Files.createDirectories(targetPath.getParent());
-
+            System.out.println(id + " going to get "+p.url);
             String[] args = new String[]{
                     "wget",
+                    "-t", "1", //just try once
                     "-O",
                     targetPath.toString(),
                     p.url
@@ -184,7 +214,7 @@ public class WReGetter {
             pb.command(args);
             Process process = pb.start();
             int exit = -1;
-            System.out.println("about to start: "+p.digest + " : "+p.url);
+            System.out.println(id + " about to start: "+p.digest + " : "+p.url);
             while (true) {
                 try {
                     exit = process.exitValue();
@@ -197,7 +227,21 @@ public class WReGetter {
                     }
                 }
             }
-            System.out.println("finished: "+p.digest + " : "+p.url);
+            if (needToComputeDigest) {
+                digest = base32.encodeToString(DigestUtils.sha1(Files.newInputStream(targetPath)));
+                System.out.println(id + " digest: "+digest);
+                Path repoTargetFile = rootDir.resolve(digest.substring(0,2)+"/"+digest);
+                if (Files.exists(repoTargetFile)) {
+                    Files.delete(targetPath);
+                    System.out.println("Already had file: "+digest);
+                    return;
+                }
+                Files.createDirectories(repoTargetFile.getParent());
+                Files.copy(targetPath, repoTargetFile);
+                Files.delete(targetPath);
+            }
+
+            System.out.println(id + " finished: "+digest + " : "+p.url);
         }
     }
 

@@ -1,0 +1,108 @@
+{
+  "field_mapper": {
+    "_comment": "borrowed from a Solr-like project",
+    "_comment": "f = from; t = to",
+    "ignore_case": "true",
+    "mappings": [
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(?i)(wiki[mp]edia||mediawiki|wikimediafoundation|wiki(quote|books|data|voyage|versity))\\.org"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(tools.wmflabs|toolserver|geohack|geonames|ethnologue)"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(\\.bnf\\.fr)"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(usgs|census|usda|nih|cia|nsa|nasa|cdc|noaa|loc)\\.gov"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "stats\\.gov\\.cn"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "bbc\\.co\\.uk|(cnn|nytimes|foxnews|xinhuanet|bbc)\\.com"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(facebook|twitteryoutube|google|apple|microsoft|baidu|weibo|yahoo)\\.com"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(britannica|wiley)\\.com"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(dnsstuff)\\.com|dnswatch\\.info"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": ".*geonames.ncc.org.*"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": ".*torproject.*"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(doi\\.org|www\\.worldcat\\.org|freebase\\.com|imdb\\.com|rottentomatoes\\.com|harvard\\.edu)"
+        }
+      },
+      {
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": "(webcitation|archive|musicbrainz)\\.org"
+        }
+      },
+      {
+        "_comment" : "remove links > 3000 chars",
+        "f": "input_url",
+        "t": "cleaned_url",
+        "filter": {
+          "find": ".{3000}"
+        }
+      }
+    ]
+  }
+}
