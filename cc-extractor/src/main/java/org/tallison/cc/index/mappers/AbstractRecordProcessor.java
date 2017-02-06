@@ -102,4 +102,12 @@ abstract class AbstractRecordProcessor implements IndexRecordProcessor {
         return ext;
     }
 
+    //returns "" if key is null, otherwise, trims and converts remaining \r\n\t to " "
+    protected static String clean(String key) {
+        if (key == null) {
+            return "";
+        }
+        return key.trim().replaceAll("[\r\n\t]", " ");
+    }
+
 }

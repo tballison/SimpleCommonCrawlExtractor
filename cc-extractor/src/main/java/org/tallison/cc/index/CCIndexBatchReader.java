@@ -43,7 +43,8 @@ public class CCIndexBatchReader {
             "CountMimeByExt",
             "CountMimes",
             "DownSample",
-            "FindURLsFromDigests"
+            "FindURLsFromDigests",
+            "CountTopLevelDomains"
     };
 
     private final static String PACKAGE_NAME = "org.tallison.cc.index.mappers";

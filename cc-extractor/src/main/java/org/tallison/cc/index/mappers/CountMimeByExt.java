@@ -68,7 +68,7 @@ public class CountMimeByExt extends AbstractRecordProcessor {
             ExtCounts extCounts = e.getValue();
             extCounts.m = MapUtil.sortByValueDesc(extCounts.m);
             for (Map.Entry<String, Integer> e2 : extCounts.m.entrySet()) {
-                writer.write(ext + "\t" + e2.getKey() + "\t" + e2.getValue()+"\n");
+                writer.write(clean(ext) + "\t" + clean(e2.getKey()) + "\t" + e2.getValue()+"\n");
             }
         }
         writer.flush();

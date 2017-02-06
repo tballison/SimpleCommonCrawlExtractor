@@ -16,6 +16,10 @@
  */
 package org.tallison.cc.index.mappers;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.tallison.cc.index.CCIndexRecord;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Writer;
@@ -23,14 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import org.tallison.cc.index.CCIndexRecord;
+import java.util.*;
 
 /**
  * Class loads a tab-delimited file of mime\t<code>float</code>.
@@ -44,7 +41,7 @@ import org.tallison.cc.index.CCIndexRecord;
  * record is selected (or threshold value = 1.0f).
  */
 
-public class DownSample extends AbstractRecordProcessor {
+public class ExtractByMimeExt extends AbstractRecordProcessor {
     private static final String MIME_COL_HEADER = "mime";
     private static Gson gson = new GsonBuilder().create();
 
@@ -52,32 +49,49 @@ public class DownSample extends AbstractRecordProcessor {
     private Writer writer;
 
     private int i;
-    private final Map<String, Float> mimes = new HashMap<>();
+    private final Set<String> mimes = new HashSet<>();
+    private final Set<String> extensions = new HashSet<>();
     int multiline = 0;
 
-    public DownSample() {}
+    public ExtractByMimeExt() {}
 
     @Override
     public void init(String[] args) throws Exception {
         super.init(args);
         mimes.clear();
+        //args[0] is mimes file
+        //args[1] is ext file
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(args[0]))) {
             String line = reader.readLine();
             while (line != null) {
                 String[] cols = line.split("\t");
-                if (cols.length > 1) {
+                if (cols.length > 0) {
                     String mime = cols[0].trim();
                     if (mime.equalsIgnoreCase(MIME_COL_HEADER)) {
                         line = reader.readLine();
                         continue;
                     }
-                    float f = -1.0f;
-                    try {
-                        f = Float.parseFloat(cols[1]);
-                        mimes.put(mime, f);
-                    } catch (NumberFormatException e) {
-                        System.err.println("couldn't parse "+cols[1] +" for: " +mime);
+                    mimes.add(mime);
+                } else {
+                    System.err.println("row too short: "+line);
+                }
+                line = reader.readLine();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(args[1]))) {
+            String line = reader.readLine();
+            while (line != null) {
+                String[] cols = line.split("\t");
+                if (cols.length > 0) {
+                    String ext = cols[0].trim();
+                    if (ext.equalsIgnoreCase(MIME_COL_HEADER)) {
+                        line = reader.readLine();
+                        continue;
                     }
+                    extensions.add(ext);
                 } else {
                     System.err.println("row too short: "+line);
                 }
@@ -88,7 +102,7 @@ public class DownSample extends AbstractRecordProcessor {
         }
 
         try {
-            Path targFile = Paths.get(args[1]).resolve("downsampled_rows_"+getThreadNumber()+".txt");
+            Path targFile = Paths.get(args[2]).resolve("downsampled_rows_"+getThreadNumber()+".txt");
             Files.createDirectories(targFile.getParent());
             writer = Files.newBufferedWriter(targFile,
                     StandardCharsets.UTF_8);
@@ -111,13 +125,18 @@ public class DownSample extends AbstractRecordProcessor {
 
         for (CCIndexRecord r : records) {
             String m = CCIndexRecord.normalizeMime(r.getMime());
-            boolean select = false;
-            if (mimes.containsKey(m)) {
-                float rf = random.nextFloat();
-                if (rf <= mimes.get(m)) {
-                    select = true;
+            String ext = getExtension(r.getUrl());
+            String lenString = r.getLength();
+            try {
+                long len = Long.parseLong(lenString);
+                if (len < 10000) {
+                    continue;
                 }
-            } else {
+            } catch (NumberFormatException e) {
+
+            }
+            boolean select = false;
+            if (mimes.contains(m) || extensions.contains(ext)) {
                 select = true;
             }
             if (select == true) {

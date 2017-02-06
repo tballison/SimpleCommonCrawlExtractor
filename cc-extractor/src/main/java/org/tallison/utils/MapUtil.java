@@ -28,6 +28,8 @@ import java.util.Map;
  * http://stackoverflow.com/questions/109383/sort-a-mapkey-value-by-values-java
  *
  * where permission is granted for common use
+ *
+ * slightly modified to sort desc by val then key where equal
  */
 public class MapUtil
 {
@@ -52,7 +54,7 @@ public class MapUtil
         return result;
     }
 
-    public static <K, V extends Comparable<? super V>> Map<K, V>
+    public static <K extends Comparable<? super K>, V extends Comparable<? super V>> Map<K, V>
     sortByValueDesc( Map<K, V> map )
     {
         List<Map.Entry<K, V>> list =
@@ -61,7 +63,11 @@ public class MapUtil
         {
             public int compare( Map.Entry<K, V> o1, Map.Entry<K, V> o2 )
             {
-                return (o2.getValue()).compareTo( o1.getValue() );
+                int ret = o2.getValue().compareTo( o1.getValue() );
+                if (ret == 0) {
+                    return o1.getKey().compareTo(o2.getKey());
+                }
+                return ret;
             }
         } );
 

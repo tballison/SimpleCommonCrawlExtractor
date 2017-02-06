@@ -69,34 +69,11 @@ public class CountExtByMime extends AbstractRecordProcessor {
             MimeCounts mimeCounts = e.getValue();
             mimeCounts.m = MapUtil.sortByValueDesc(mimeCounts.m);
             for (Map.Entry<String, Integer> e2 : mimeCounts.m.entrySet()) {
-                writer.write(ext + "\t" + e2.getKey() + "\t" + e2.getValue()+"\n");
+                writer.write(clean(ext) + "\t" + clean(e2.getKey()) + "\t" + e2.getValue()+"\n");
             }
         }
         writer.flush();
         writer.close();
     }
 
-    private class MimeCounts implements Comparable<MimeCounts> {
-        private int total = 0;
-        Map<String, Integer> m = new HashMap<>();
-        void increment(String mime) {
-            Integer cnt = m.get(mime);
-            if (cnt == null) {
-                cnt = new Integer(1);
-            } else {
-                cnt++;
-            }
-            m.put(mime, cnt);
-            total++;
-        }
-        int getTotal() {
-            return total;
-        }
-
-
-        @Override
-        public int compareTo(MimeCounts o) {
-            return new Integer(total).compareTo(new Integer(o.total));
-        }
-    }
 }
