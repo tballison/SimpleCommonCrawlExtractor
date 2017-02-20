@@ -53,7 +53,7 @@ public class CountMimesByTopLevelDomains extends CountTopLevelDomains {
 
     @Override
     public void process(String row) throws IOException {
-        List<CCIndexRecord> records = parseRecords(row);
+        List<CCIndexRecord> records = CCIndexRecord.parseRecords(row);
         for (CCIndexRecord r : records) {
             if (! r.getStatus().equals("200")) {
                 continue;
@@ -63,7 +63,7 @@ public class CountMimesByTopLevelDomains extends CountTopLevelDomains {
             if (u.endsWith("robots.txt")) {
                 continue;
             }
-            String tld = getTLD(u);
+            String tld = CCIndexRecord.getTLD(u);
             String mime = CCIndexRecord.normalizeMime(r.getMime());
             mime = (mime == null) ? "NULL" : mime;
             MimeCounts mimeCounts = map.get(tld);

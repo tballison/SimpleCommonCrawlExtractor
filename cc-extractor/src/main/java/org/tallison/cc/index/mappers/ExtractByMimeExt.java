@@ -16,10 +16,6 @@
  */
 package org.tallison.cc.index.mappers;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import org.tallison.cc.index.CCIndexRecord;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Writer;
@@ -27,7 +23,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.tallison.cc.index.CCIndexRecord;
 
 /**
  * Class loads a tab-delimited file of mime\t<code>float</code>.
@@ -121,19 +124,13 @@ public class ExtractByMimeExt extends AbstractRecordProcessor {
     @Override
     public void process(String row) throws IOException {
 
-        List<CCIndexRecord> records = parseRecords(row);
+        List<CCIndexRecord> records = CCIndexRecord.parseRecords(row);
 
         for (CCIndexRecord r : records) {
             String m = CCIndexRecord.normalizeMime(r.getMime());
             String ext = getExtension(r.getUrl());
-            String lenString = r.getLength();
-            try {
-                long len = Long.parseLong(lenString);
-                if (len < 10000) {
-                    continue;
-                }
-            } catch (NumberFormatException e) {
-
+            if (r.getLength() < 10000) {
+                continue;
             }
             boolean select = false;
             if (mimes.contains(m) || extensions.contains(ext)) {

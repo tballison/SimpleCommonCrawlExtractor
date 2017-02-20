@@ -77,7 +77,7 @@ public class FindURLsFromDigests extends AbstractRecordProcessor {
     @Override
     public void process(String row) throws IOException {
 
-        List<CCIndexRecord> records = parseRecords(row);
+        List<CCIndexRecord> records = CCIndexRecord.parseRecords(row);
 
         for (CCIndexRecord r : records) {
             String digest = r.getDigest();

@@ -3,9 +3,7 @@ package org.tallison.cc.index.mappers;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Created by TALLISON on 2/6/2017.
- */
+
 public class MimeCounts implements Comparable<MimeCounts> {
         private int total = 0;
         Map<String, Integer> m = new HashMap<>();

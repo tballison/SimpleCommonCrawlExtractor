@@ -18,8 +18,6 @@ package org.tallison.cc.index.mappers;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,15 +25,12 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.tallison.cc.index.CCIndexRecord;
 import org.tallison.utils.MapUtil;
 
 public class CountTopLevelDomains extends AbstractRecordProcessor {
 
-    private static Pattern INT_PATTERN = Pattern.compile("^\\d+$");
     private Map<String, Integer> map = new HashMap<>();
     private Writer writer;
     @Override
@@ -57,9 +52,9 @@ public class CountTopLevelDomains extends AbstractRecordProcessor {
     @Override
     public void process(String row) throws IOException {
 
-        List<CCIndexRecord> records = parseRecords(row);
+        List<CCIndexRecord> records = CCIndexRecord.parseRecords(row);
         for (CCIndexRecord r : records) {
-            String tld = getTLD(r.getUrl());
+            String tld = CCIndexRecord.getTLD(r.getUrl());
             Integer c = map.get(tld);
             if (c == null) {
                 c = new Integer(1);
@@ -81,37 +76,5 @@ public class CountTopLevelDomains extends AbstractRecordProcessor {
         writer.close();
     }
 
-    /**
-     *
-     * @param url
-     * @return "" if no tld could be extracted
-     */
-    protected static String getTLD(String url) {
-        if (url == null) {
-            return "";
-        }
-        Matcher intMatcher = INT_PATTERN.matcher("");
-
-        try {
-            URI uri = new URI(url);
-            String host = uri.getHost();
-            int i = host.lastIndexOf(".");
-            String tld = "";
-            if (i > -1 && i+1 < host.length()) {
-                tld = host.substring(i+1);
-            } else {
-                //bad host...or do we want to handle xyz.com. ?
-                return tld;
-            }
-            if (intMatcher.reset(tld).find()) {
-                return "";
-            }
-            return tld;
-
-        } catch (URISyntaxException e) {
-            //swallow
-        }
-        return "";
-    }
 
 }
