@@ -127,6 +127,13 @@ public class CCGetter {
     }
 
     private void fetch(CCIndexRecord r, Path rootDir, BufferedWriter writer) throws IOException {
+        Path targFile = rootDir.resolve(r.getDigest().substring(0, 2) + "/" + r.getDigest());
+
+        if (Files.isRegularFile(targFile)) {
+            writeStatus(r, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
+            return;
+        }
+
         String url = AWS_BASE+r.getFilename();
         URI uri = null;
         try {
@@ -189,13 +196,14 @@ public class CCGetter {
             //this among other parts is plagiarized from centic9's CommonCrawlDocumentDownload
             //probably saved me hours.  Thank you, Dominik!
             tmp = Files.createTempFile("cc-getter", "");
-            InputStream is = new GZIPInputStream(httpResponse.getEntity().getContent());
-            WARCRecord warcRecord = new WARCRecord(new FastBufferedInputStream(is), "", 0);
-            LaxHttpParser.parseHeaders(warcRecord,"UTF-8");
+            try (InputStream is = new GZIPInputStream(httpResponse.getEntity().getContent())) {
+                WARCRecord warcRecord = new WARCRecord(new FastBufferedInputStream(is), "", 0);
+                LaxHttpParser.parseHeaders(warcRecord, "UTF-8");
 
-            Files.copy(warcRecord,
-                    tmp,
-                    StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(warcRecord,
+                        tmp,
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             writeStatus(r, FETCH_STATUS.FETCHED_IO_EXCEPTION_READING_ENTITY, writer);
             deleteTmp(tmp);
@@ -212,7 +220,6 @@ public class CCGetter {
             return;
         }
 
-        Path targFile = rootDir.resolve(digest.substring(0, 2) + "/" + digest);
         if (Files.exists(targFile)) {
             writeStatus(r, digest, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
             deleteTmp(tmp);
