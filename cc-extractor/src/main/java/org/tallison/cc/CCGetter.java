@@ -187,6 +187,7 @@ public class CCGetter {
         Path tmp = null;
         try {
             //this among other parts is plagiarized from centic9's CommonCrawlDocumentDownload
+            //probably saved me hours.  Thank you, Dominik!
             tmp = Files.createTempFile("cc-getter", "");
             InputStream is = new GZIPInputStream(httpResponse.getEntity().getContent());
             WARCRecord warcRecord = new WARCRecord(new FastBufferedInputStream(is), "", 0);
