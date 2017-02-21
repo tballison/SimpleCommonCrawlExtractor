@@ -137,23 +137,21 @@ public class CCIndexRecord {
     }
 
     private static CCIndexRecord parseRecord(String row, AtomicInteger i) {
-/*        int urlI = row.indexOf(' ',i.get());
+        int urlI = row.indexOf(' ',i.get());
         int dateI = row.indexOf(' ', urlI+1);
+        String json = null;
+        if (urlI == -1 && dateI == -1) {
+            json = row;
+        } else {
+            int end = row.indexOf('}', dateI + 1);
+            if (end == -1) {
+                //barf
+                return null;
+            }
+            i.set(end + 1);
+            json = row.substring(dateI, end+1);
 
-        if (dateI == -1) {
-            //barf
-            return null;
         }
-        int end = row.indexOf('}',dateI+1);
-        if (end == -1) {
-            //barf
-            return null;
-        }
-        i.set(end+1);
-//        String json = row.substring(dateI);
-        String json = row.substring(dateI, end+1);
-        */
-        String json = row;
         CCIndexRecord r;
         try {
             r = gson.fromJson(json, CCIndexRecord.class);

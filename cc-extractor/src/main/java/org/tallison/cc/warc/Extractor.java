@@ -53,8 +53,11 @@ public class Extractor extends AbstractExtractor {
             extractorStats.truncatedRecord();
         }
         Header[] headers = LaxHttpParser.parseHeaders(record, "ISO-8859-1");
-
-        MediaType httpMediaType = getHttpMediaType(headers);
+        for (Header header : headers) {
+            System.out.println("H: " + header.getName() + " : "+ header.getValue());
+        }
+        return;
+/*        MediaType httpMediaType = getHttpMediaType(headers);
         if (httpMediaType != null) {
             System.out.println("HTTPMEDIA TYPE: " + httpMediaType.toString());
         }
@@ -94,6 +97,7 @@ public class Extractor extends AbstractExtractor {
 
         //now read the bytes and process appropriately
         handlePayload(record, urlExt, httpMediaType);
+        */
     }
 
 

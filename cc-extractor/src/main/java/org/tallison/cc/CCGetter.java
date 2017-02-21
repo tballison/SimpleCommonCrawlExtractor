@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -37,6 +38,7 @@ import java.util.zip.GZIPInputStream;
 import it.unimi.dsi.fastutil.io.FastBufferedInputStream;
 import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.httpclient.Header;
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
@@ -49,6 +51,7 @@ import org.apache.http.impl.client.RedirectLocations;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.log4j.Logger;
 import org.apache.tika.io.IOUtils;
+import org.archive.format.warc.WARCConstants;
 import org.archive.io.warc.WARCRecord;
 import org.archive.util.LaxHttpParser;
 import org.tallison.cc.index.CCIndexRecord;
@@ -77,6 +80,7 @@ public class CCGetter {
     static Logger logger = Logger.getLogger(CCGetter.class);
 
     private Base32 base32 = new Base32();
+    private boolean writtenHeader = false;
 
     private final String proxyHost;
     private final int proxyPort;
@@ -99,11 +103,10 @@ public class CCGetter {
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 String line = reader.readLine();
-                while (line != null && count < 200) {
+                while (line != null) {
                     processRow(line, rootDir, writer);
                     if (++count % 100 == 0) {
-
-                        System.err.println(indexFile.getFileName().toString() + ": " + count);
+                        logger.info(indexFile.getFileName().toString() + ": " + count);
                     }
                     line = reader.readLine();
                 }
@@ -131,6 +134,7 @@ public class CCGetter {
 
         if (Files.isRegularFile(targFile)) {
             writeStatus(r, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
+            logger.info("already retrieved:"+targFile.toAbsolutePath());
             return;
         }
 
@@ -149,7 +153,6 @@ public class CCGetter {
         if (uri.getRawQuery() != null) {
             urlPath += "?" + uri.getRawQuery();
         }
-        logger.info("going to get " + url);
         HttpGet httpGet = null;
         try {
             httpGet = new HttpGet(urlPath);
@@ -192,36 +195,39 @@ public class CCGetter {
             return;
         }
         Path tmp = null;
+        Header[] headers = null;
         try {
             //this among other parts is plagiarized from centic9's CommonCrawlDocumentDownload
             //probably saved me hours.  Thank you, Dominik!
             tmp = Files.createTempFile("cc-getter", "");
             try (InputStream is = new GZIPInputStream(httpResponse.getEntity().getContent())) {
                 WARCRecord warcRecord = new WARCRecord(new FastBufferedInputStream(is), "", 0);
-                LaxHttpParser.parseHeaders(warcRecord, "UTF-8");
+                headers = LaxHttpParser.parseHeaders(warcRecord, "UTF-8");
 
                 Files.copy(warcRecord,
                         tmp,
                         StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            writeStatus(r, FETCH_STATUS.FETCHED_IO_EXCEPTION_READING_ENTITY, writer);
+            writeStatus(r, null, headers, 0L, FETCH_STATUS.FETCHED_IO_EXCEPTION_READING_ENTITY, writer);
             deleteTmp(tmp);
             return;
         }
 
         String digest = null;
+        long tmpLength = 0l;
         try (InputStream is = Files.newInputStream(tmp)) {
             digest = base32.encodeAsString(DigestUtils.sha1(is));
+            tmpLength = Files.size(tmp);
         } catch (IOException e) {
-            writeStatus(r, FETCH_STATUS.FETCHED_IO_EXCEPTION_SHA1, writer);
+            writeStatus(r, null, headers, tmpLength, FETCH_STATUS.FETCHED_IO_EXCEPTION_SHA1, writer);
             logger.warn("IOException during digesting: " + tmp.toAbsolutePath());
             deleteTmp(tmp);
             return;
         }
 
         if (Files.exists(targFile)) {
-            writeStatus(r, digest, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
+            writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
             deleteTmp(tmp);
             return;
         }
@@ -229,20 +235,34 @@ public class CCGetter {
             Files.createDirectories(targFile.getParent());
             Files.copy(tmp, targFile);
         } catch (IOException e) {
-            writeStatus(r, digest, FETCH_STATUS.FETCHED_EXCEPTION_COPYING_TO_REPOSITORY, writer);
+            writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.FETCHED_EXCEPTION_COPYING_TO_REPOSITORY, writer);
             deleteTmp(tmp);
 
         }
-        writeStatus(r, digest, FETCH_STATUS.ADDED_TO_REPOSITORY, writer);
+        writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.ADDED_TO_REPOSITORY, writer);
         deleteTmp(tmp);
     }
 
     private void writeStatus(CCIndexRecord r, FETCH_STATUS fetchStatus, BufferedWriter writer) throws IOException {
-        writeStatus(r, null, fetchStatus, writer);
+        writeStatus(r, null, null, -1l, fetchStatus, writer);
     }
 
-    private void writeStatus(CCIndexRecord r, String actualDigest, FETCH_STATUS fetchStatus, BufferedWriter writer) throws IOException {
+    private void writeStatus(CCIndexRecord r, String actualDigest,
+                             Header[] headers, long actualLength,
+                             FETCH_STATUS fetchStatus, BufferedWriter writer) throws IOException {
         List<String> row = new LinkedList<>();
+
+
+        if (! writtenHeader) {
+            row.addAll(
+                    Arrays.asList(new String[]{"URL", "CC_MIME", "CC_DIGEST", "COMPUTED_DIGEST", "HEADER_ENCODING", "HEADER_TYPE",
+                            "HEADER_LANGUAGE", "HEADER_LENGTH", "ACTUAL_LENGTH", "WARC_IS_TRUNCATED", "FETCH_STATUS"}));
+            writer.write(StringUtils.join(row, "\t"));
+            writer.write("\n");
+            row.clear();
+            writtenHeader = true;
+        }
+
         row.add(clean(r.getUrl()));
         row.add(clean(r.getMime()));
         row.add(clean(r.getDigest()));
@@ -251,11 +271,28 @@ public class CCGetter {
         } else {
             row.add("");
         }
-        row.add(Integer.toString(r.getLength()));
+        row.add(getHeader("content-encoding", headers));
+        row.add(getHeader("content-type", headers));
+        row.add(getHeader("content-language", headers));
+        row.add(getHeader("content-length", headers));
+        row.add(Long.toString(actualLength));
+        row.add(getHeader(WARCConstants.HEADER_KEY_TRUNCATED, headers));
         row.add(clean(fetchStatus.toString()));
 
         writer.write(StringUtils.join(row, "\t"));
         writer.write("\n");
+    }
+
+    private String getHeader(String headerNameLC, Header[] headers) {
+        if (headers == null) {
+            return "";
+        }
+        for (Header header : headers) {
+            if (header.getName().equalsIgnoreCase(headerNameLC)) {
+                return clean(header.getValue());
+            }
+        }
+        return "";
     }
 
     private String clean(String s) {
