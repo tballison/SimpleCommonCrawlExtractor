@@ -52,6 +52,7 @@ import org.apache.http.protocol.HttpCoreContext;
 import org.apache.log4j.Logger;
 import org.apache.tika.io.IOUtils;
 import org.archive.format.warc.WARCConstants;
+import org.archive.io.ArchiveRecordHeader;
 import org.archive.io.warc.WARCRecord;
 import org.archive.util.LaxHttpParser;
 import org.tallison.cc.index.CCIndexRecord;
@@ -196,12 +197,18 @@ public class CCGetter {
         }
         Path tmp = null;
         Header[] headers = null;
+        boolean isTruncated = false;
         try {
             //this among other parts is plagiarized from centic9's CommonCrawlDocumentDownload
             //probably saved me hours.  Thank you, Dominik!
             tmp = Files.createTempFile("cc-getter", "");
             try (InputStream is = new GZIPInputStream(httpResponse.getEntity().getContent())) {
                 WARCRecord warcRecord = new WARCRecord(new FastBufferedInputStream(is), "", 0);
+                ArchiveRecordHeader archiveRecordHeader = warcRecord.getHeader();
+                if (archiveRecordHeader.getHeaderFields()
+                        .containsKey(WARCConstants.HEADER_KEY_TRUNCATED)) {
+                    isTruncated = true;
+                }
                 headers = LaxHttpParser.parseHeaders(warcRecord, "UTF-8");
 
                 Files.copy(warcRecord,
@@ -209,7 +216,7 @@ public class CCGetter {
                         StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            writeStatus(r, null, headers, 0L, FETCH_STATUS.FETCHED_IO_EXCEPTION_READING_ENTITY, writer);
+            writeStatus(r, null, headers, 0L, isTruncated, FETCH_STATUS.FETCHED_IO_EXCEPTION_READING_ENTITY, writer);
             deleteTmp(tmp);
             return;
         }
@@ -220,14 +227,14 @@ public class CCGetter {
             digest = base32.encodeAsString(DigestUtils.sha1(is));
             tmpLength = Files.size(tmp);
         } catch (IOException e) {
-            writeStatus(r, null, headers, tmpLength, FETCH_STATUS.FETCHED_IO_EXCEPTION_SHA1, writer);
+            writeStatus(r, null, headers, tmpLength, isTruncated, FETCH_STATUS.FETCHED_IO_EXCEPTION_SHA1, writer);
             logger.warn("IOException during digesting: " + tmp.toAbsolutePath());
             deleteTmp(tmp);
             return;
         }
 
         if (Files.exists(targFile)) {
-            writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
+            writeStatus(r, digest, headers, tmpLength, isTruncated, FETCH_STATUS.ALREADY_IN_REPOSITORY, writer);
             deleteTmp(tmp);
             return;
         }
@@ -235,20 +242,21 @@ public class CCGetter {
             Files.createDirectories(targFile.getParent());
             Files.copy(tmp, targFile);
         } catch (IOException e) {
-            writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.FETCHED_EXCEPTION_COPYING_TO_REPOSITORY, writer);
+            writeStatus(r, digest, headers, tmpLength, isTruncated, FETCH_STATUS.FETCHED_EXCEPTION_COPYING_TO_REPOSITORY, writer);
             deleteTmp(tmp);
 
         }
-        writeStatus(r, digest, headers, tmpLength, FETCH_STATUS.ADDED_TO_REPOSITORY, writer);
+        writeStatus(r, digest, headers, tmpLength, isTruncated, FETCH_STATUS.ADDED_TO_REPOSITORY, writer);
         deleteTmp(tmp);
     }
 
     private void writeStatus(CCIndexRecord r, FETCH_STATUS fetchStatus, BufferedWriter writer) throws IOException {
-        writeStatus(r, null, null, -1l, fetchStatus, writer);
+        writeStatus(r, null, null, -1l, false, fetchStatus, writer);
     }
 
     private void writeStatus(CCIndexRecord r, String actualDigest,
                              Header[] headers, long actualLength,
+                             boolean isTruncated,
                              FETCH_STATUS fetchStatus, BufferedWriter writer) throws IOException {
         List<String> row = new LinkedList<>();
 
@@ -276,7 +284,11 @@ public class CCGetter {
         row.add(getHeader("content-language", headers));
         row.add(getHeader("content-length", headers));
         row.add(Long.toString(actualLength));
-        row.add(getHeader(WARCConstants.HEADER_KEY_TRUNCATED, headers));
+        if (isTruncated) {
+            row.add("TRUE");
+        } else {
+            row.add("");
+        }
         row.add(clean(fetchStatus.toString()));
 
         writer.write(StringUtils.join(row, "\t"));

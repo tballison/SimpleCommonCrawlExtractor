@@ -56,8 +56,7 @@ public class Extractor extends AbstractExtractor {
         for (Header header : headers) {
             System.out.println("H: " + header.getName() + " : "+ header.getValue());
         }
-        return;
-/*        MediaType httpMediaType = getHttpMediaType(headers);
+        MediaType httpMediaType = getHttpMediaType(headers);
         if (httpMediaType != null) {
             System.out.println("HTTPMEDIA TYPE: " + httpMediaType.toString());
         }
@@ -97,7 +96,7 @@ public class Extractor extends AbstractExtractor {
 
         //now read the bytes and process appropriately
         handlePayload(record, urlExt, httpMediaType);
-        */
+
     }
 
 
