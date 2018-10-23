@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -33,16 +34,21 @@ import com.google.gson.JsonSyntaxException;
 public class CCIndexRecord {
 
     private static Pattern INT_PATTERN = Pattern.compile("^\\d+$");
-    private static Gson gson = new GsonBuilder().create();
+    private static Gson gson = new GsonBuilder()
+            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_DASHES)
+            .create();
 
 
     private String url;
     private String mime;
+    private String mimeDetected;
     private String status;
     private String digest;
     private Integer length;
     private Integer offset;
     private String filename;
+    private String charset;
+    private String languages;
 
     public String getUrl() {
         return url;
@@ -70,6 +76,18 @@ public class CCIndexRecord {
 
     public String getFilename() {
         return filename;
+    }
+
+    public String getMimeDetected() {
+        return mimeDetected;
+    }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public String getLanguages() {
+        return languages;
     }
 
     public static String normalizeMime(String s) {
@@ -101,6 +119,9 @@ public class CCIndexRecord {
         try {
             URI uri = new URI(url);
             String host = uri.getHost();
+            if (host == null) {
+                return "";
+            }
             int i = host.lastIndexOf(".");
             String tld = "";
             if (i > -1 && i+1 < host.length()) {
@@ -163,4 +184,19 @@ public class CCIndexRecord {
         return r;
     }
 
+    @Override
+    public String toString() {
+        return "CCIndexRecord{" +
+                "url='" + url + '\'' +
+                ", mime='" + mime + '\'' +
+                ", mimeDetected='" + mimeDetected + '\'' +
+                ", status='" + status + '\'' +
+                ", digest='" + digest + '\'' +
+                ", length=" + length +
+                ", offset=" + offset +
+                ", filename='" + filename + '\'' +
+                ", charset='" + charset + '\'' +
+                ", languages='" + languages + '\'' +
+                '}';
+    }
 }

@@ -20,7 +20,9 @@ abstract class AbstractRecordProcessor implements IndexRecordProcessor {
 
 
     public void init(String[] args) throws Exception {
-        if (args[0].equals("-h") || args[0].equals("--help")) {
+
+        if (args.length > 0 &&
+                (args[0].equals("-h") || args[0].equals("--help"))) {
             usage();
             System.exit(1);
         }
