@@ -16,6 +16,12 @@
  */
 package org.tallison.cc.index.mappers;
 
+import com.google.gson.FieldNamingPolicy;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.apache.commons.lang.StringUtils;
+import org.tallison.cc.index.CCIndexRecord;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Writer;
@@ -30,11 +36,6 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.gson.FieldNamingPolicy;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import org.tallison.cc.index.CCIndexRecord;
-
 /**
  * Class loads a tab-delimited file of mime\t<code>float</code>.
  * It selects a record if a random float is at/below that threshold.
@@ -45,10 +46,8 @@ import org.tallison.cc.index.CCIndexRecord;
  * <p>
  * If a mime type does not exist in the sampling weights file, the index
  * record is selected (or threshold value = 1.0f).
- *
+ * <p>
  * Alternatively, the tab delimited file can contain topleveldomain\tmime\t<code>float</code>
- *
- *
  */
 
 public class DownSample extends AbstractRecordProcessor {
@@ -91,9 +90,9 @@ public class DownSample extends AbstractRecordProcessor {
                             tldMimes.put(ANY_TLD, mimes);
                         }
                         if (mime.startsWith("/") && mime.endsWith("/")) {
-                            mime = mime.substring(1, mime.length()-1);
+                            mime = mime.substring(1, mime.length() - 1);
                         } else {
-                            mime = "(?i)\\A"+mime+"\\Z";
+                            mime = "(?i)\\A" + mime + "\\Z";
                         }
                         Matcher mimeMatcher = Pattern.compile(mime).matcher("");
                         mimes.put(mimeMatcher, f);
@@ -116,9 +115,9 @@ public class DownSample extends AbstractRecordProcessor {
                             tldMimes.put(tld, mimes);
                         }
                         if (mime.startsWith("/") && mime.endsWith("/")) {
-                            mime = mime.substring(1, mime.length()-1);
+                            mime = mime.substring(1, mime.length() - 1);
                         } else {
-                            mime = "(?i)\\A"+mime+"\\Z";
+                            mime = "(?i)\\A" + mime + "\\Z";
                         }
                         Matcher mimeMatcher = Pattern.compile(mime).matcher("");
                         mimes.put(mimeMatcher, f);
@@ -158,7 +157,7 @@ public class DownSample extends AbstractRecordProcessor {
         List<CCIndexRecord> records = CCIndexRecord.parseRecords(row);
 
         for (CCIndexRecord r : records) {
-            if (! r.getStatus().equals("200")) {
+            if (!r.getStatus().equals("200")) {
                 continue;
             } else if (r.getUrl().endsWith("robots.txt")) {
                 continue;
@@ -166,27 +165,9 @@ public class DownSample extends AbstractRecordProcessor {
             String mime = CCIndexRecord.normalizeMime(r.getMime());
             String detectedMime = CCIndexRecord.normalizeMime(r.getMimeDetected());
             String tld = CCIndexRecord.getTLD(r.getUrl());
-            String tldToUse = tld;
-            boolean select = false;
-            if (!tldMimes.containsKey(tld)) {
-                tldToUse = ANY_TLD;
-            }
-            if (tldMimes.containsKey(tldToUse)) {
-                Map<Matcher, Float> mimes = tldMimes.get(tldToUse);
-                if (mimes != null) {
 
-                    for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
-                        Matcher mimeMatcher = e.getKey();
-                        if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
-                            float rf = random.nextFloat();
-                            if (e.getValue() >= 1.0 || rf <= e.getValue()) {
-                                select = true;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
+            boolean select = shouldSelect(tld, mime, detectedMime);
+
             if (select == true) {
                 gson.toJson(r, writer);
                 writer.write("\n");
@@ -194,6 +175,42 @@ public class DownSample extends AbstractRecordProcessor {
                 //System.out.println("IGNORE: "+m);
             }
         }
+    }
+
+    private boolean shouldSelect(String tld, String mime, String detectedMime) {
+        //try to find the sampling % for the actual tld
+        if (!StringUtils.isBlank(tld) && tldMimes.containsKey(tld)) {
+            Map<Matcher, Float> mimes = tldMimes.get(tld);
+            for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
+                Matcher mimeMatcher = e.getKey();
+                if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
+                    float rf = random.nextFloat();
+                    if (e.getValue() >= 1.0 || rf <= e.getValue()) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+        //if there was no tld, or no specific mime pattern
+        //had a hit, apply the any_tld sampling rules
+        Map<Matcher, Float> mimes = tldMimes.get(ANY_TLD);
+        if (mimes != null) {
+            for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
+                Matcher mimeMatcher = e.getKey();
+                if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
+                    float rf = random.nextFloat();
+                    if (e.getValue() >= 1.0 || rf <= e.getValue()) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
 
