@@ -31,7 +31,7 @@ Steps:
 
 3. Download some WARC files (< ~1GB each)...wget -i list_of_warcs.txt
 
-4. Run the extractor: nohup java -cp cc-extractor-0.0.1.jar org.tallison.commoncrawl.ExtractorCLI 
+4. Run the extractor: nohup java -cp cc-extractor-1.0.0-SNAPSHOT.jar org.tallison.commoncrawl.ExtractorCLI 
  -w /data1/public/archives/commoncrawl2 -o /data2/docs/commoncrawl2 
 -ih "pdf|outlook|vnd.openxmlformats" 
 -id "pdf|outlook|msoffice|tika-ooxml|rtf" -iu msg &

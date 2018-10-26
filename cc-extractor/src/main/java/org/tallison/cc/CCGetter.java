@@ -263,16 +263,21 @@ public class CCGetter {
 
         if (! writtenHeader) {
             row.addAll(
-                    Arrays.asList(new String[]{"URL", "CC_MIME", "CC_DIGEST", "COMPUTED_DIGEST", "HEADER_ENCODING", "HEADER_TYPE",
+                    Arrays.asList(new String[]{"URL", "CC_MIME", "CC_MIME_DETECTED",
+                            "CC_LANGUAGES", "CC_CHARSET", "CC_DIGEST", "COMPUTED_DIGEST", "HEADER_ENCODING", "HEADER_TYPE",
                             "HEADER_LANGUAGE", "HEADER_LENGTH", "ACTUAL_LENGTH", "WARC_IS_TRUNCATED", "FETCH_STATUS"}));
             writer.write(StringUtils.join(row, "\t"));
             writer.write("\n");
+            writer.flush();
             row.clear();
             writtenHeader = true;
         }
 
         row.add(clean(r.getUrl()));
         row.add(clean(r.getMime()));
+        row.add(clean(r.getMimeDetected()));
+        row.add(clean(r.getLanguages()));
+        row.add(clean(r.getCharset()));
         row.add(clean(r.getDigest()));
         if (actualDigest != null) {
             row.add(actualDigest);
@@ -293,6 +298,7 @@ public class CCGetter {
 
         writer.write(StringUtils.join(row, "\t"));
         writer.write("\n");
+        writer.flush();
     }
 
     private String getHeader(String headerNameLC, Header[] headers) {

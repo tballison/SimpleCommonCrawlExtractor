@@ -27,7 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.tallison.cc.index.CCIndexRecord;
@@ -51,13 +54,15 @@ import org.tallison.cc.index.CCIndexRecord;
 public class DownSample extends AbstractRecordProcessor {
     private static final String ANY_TLD = "ANY_TLD";
     private static final String MIME_COL_HEADER = "mime";
-    private static Gson gson = new GsonBuilder().create();
+    private static Gson gson = new GsonBuilder()
+            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_DASHES)
+            .create();
 
     private final Random random = new Random();
     private Writer writer;
 
     private int i;
-    private final Map<String, Map<String, Float>> tldMimes = new HashMap<>();
+    private final Map<String, Map<Matcher, Float>> tldMimes = new HashMap<>();
     int multiline = 0;
 
     public DownSample() {
@@ -80,12 +85,18 @@ public class DownSample extends AbstractRecordProcessor {
                     float f = -1.0f;
                     try {
                         f = Float.parseFloat(cols[1]);
-                        Map<String, Float> mimes = tldMimes.get(ANY_TLD);
+                        Map<Matcher, Float> mimes = tldMimes.get(ANY_TLD);
                         if (mimes == null) {
                             mimes = new HashMap<>();
                             tldMimes.put(ANY_TLD, mimes);
                         }
-                        mimes.put(mime, f);
+                        if (mime.startsWith("/") && mime.endsWith("/")) {
+                            mime = mime.substring(1, mime.length()-1);
+                        } else {
+                            mime = "(?i)\\A"+mime+"\\Z";
+                        }
+                        Matcher mimeMatcher = Pattern.compile(mime).matcher("");
+                        mimes.put(mimeMatcher, f);
                     } catch (NumberFormatException e) {
                         System.err.println("couldn't parse " + cols[1] + " for: " + mime);
                     }
@@ -99,12 +110,18 @@ public class DownSample extends AbstractRecordProcessor {
                     float f = -1.0f;
                     try {
                         f = Float.parseFloat(cols[2]);
-                        Map<String, Float> mimes = tldMimes.get(tld);
+                        Map<Matcher, Float> mimes = tldMimes.get(tld);
                         if (mimes == null) {
                             mimes = new HashMap<>();
                             tldMimes.put(tld, mimes);
                         }
-                        mimes.put(mime, f);
+                        if (mime.startsWith("/") && mime.endsWith("/")) {
+                            mime = mime.substring(1, mime.length()-1);
+                        } else {
+                            mime = "(?i)\\A"+mime+"\\Z";
+                        }
+                        Matcher mimeMatcher = Pattern.compile(mime).matcher("");
+                        mimes.put(mimeMatcher, f);
                     } catch (NumberFormatException e) {
                         System.err.println("couldn't parse " + cols[1] + " for: " + mime);
                     }
@@ -147,6 +164,7 @@ public class DownSample extends AbstractRecordProcessor {
                 continue;
             }
             String mime = CCIndexRecord.normalizeMime(r.getMime());
+            String detectedMime = CCIndexRecord.normalizeMime(r.getMimeDetected());
             String tld = CCIndexRecord.getTLD(r.getUrl());
             String tldToUse = tld;
             boolean select = false;
@@ -154,11 +172,18 @@ public class DownSample extends AbstractRecordProcessor {
                 tldToUse = ANY_TLD;
             }
             if (tldMimes.containsKey(tldToUse)) {
-                Map<String, Float> mimes = tldMimes.get(tldToUse);
-                if (mimes != null && mimes.containsKey(mime)) {
-                    float rf = random.nextFloat();
-                    if (rf <= mimes.get(mime)) {
-                        select = true;
+                Map<Matcher, Float> mimes = tldMimes.get(tldToUse);
+                if (mimes != null) {
+
+                    for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
+                        Matcher mimeMatcher = e.getKey();
+                        if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
+                            float rf = random.nextFloat();
+                            if (e.getValue() >= 1.0 || rf <= e.getValue()) {
+                                select = true;
+                            }
+                            break;
+                        }
                     }
                 }
             }
