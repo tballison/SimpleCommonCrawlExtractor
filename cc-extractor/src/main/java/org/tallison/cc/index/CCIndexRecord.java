@@ -161,9 +161,12 @@ public class CCIndexRecord {
         int urlI = row.indexOf(' ',i.get());
         int dateI = row.indexOf(' ', urlI+1);
         String json = null;
-        if (urlI == -1 && dateI == -1) {
+        if (row.indexOf("{") == 0) {
             json = row;
         } else {
+            if (dateI < 0) {
+                return null;
+            }
             int end = row.indexOf('}', dateI + 1);
             if (end == -1) {
                 //barf
@@ -171,7 +174,6 @@ public class CCIndexRecord {
             }
             i.set(end + 1);
             json = row.substring(dateI, end+1);
-
         }
         CCIndexRecord r;
         try {
