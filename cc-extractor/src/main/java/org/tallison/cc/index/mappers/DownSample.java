@@ -30,9 +30,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +53,11 @@ import java.util.regex.Pattern;
  */
 
 public class DownSample extends AbstractRecordProcessor {
+    private enum WHICH_MIME {
+        HEADER_ONLY,
+        DETECTED_ONLY,
+        HEADER_OR_DETECTED
+    }
     private static final String ANY_TLD = "ANY_TLD";
     private static final String MIME_COL_HEADER = "mime";
     private static Gson gson = new GsonBuilder()
@@ -59,9 +66,13 @@ public class DownSample extends AbstractRecordProcessor {
 
     private final Random random = new Random();
     private Writer writer;
+    private boolean includesTLD = false;
+    private long selected = 0;
+    private long total = 0;
+    private WHICH_MIME headerOrDetected = WHICH_MIME.HEADER_OR_DETECTED;
 
     private int i;
-    private final Map<String, Map<Matcher, Float>> tldMimes = new HashMap<>();
+    private final Map<String, MimeMatcher> tldMimes = new HashMap<>();
     int multiline = 0;
 
     public DownSample() {
@@ -71,11 +82,27 @@ public class DownSample extends AbstractRecordProcessor {
     public void init(String[] args) throws Exception {
         super.init(args);
         tldMimes.clear();
+        if (args.length > 2) {
+            if (args[2].contains("detected_only")) {
+                headerOrDetected = WHICH_MIME.DETECTED_ONLY;
+            } else if (args[2].contains("header_only")) {
+                headerOrDetected = WHICH_MIME.HEADER_ONLY;
+            } else {
+                throw new IllegalArgumentException("Expected 'detected_only' or 'header_only'."+
+                        " I regret I don't understand: "+args[2]);
+            }
+        }
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(args[0]))) {
             String line = reader.readLine();
+            int lastNumCols = -1;
             while (line != null) {
                 String[] cols = line.split("\t");
                 if (cols.length == 2) {
+                    if (lastNumCols > -1 && lastNumCols != 2) {
+                        throw new IllegalArgumentException("Last row had" + lastNumCols +
+                                "columns, but this row has 2.  Every row must have the same number of columns");
+                    }
+                    lastNumCols = 2;
                     String mime = cols[0].trim();
                     if (mime.equalsIgnoreCase(MIME_COL_HEADER)) {
                         line = reader.readLine();
@@ -84,22 +111,22 @@ public class DownSample extends AbstractRecordProcessor {
                     float f = -1.0f;
                     try {
                         f = Float.parseFloat(cols[1]);
-                        Map<Matcher, Float> mimes = tldMimes.get(ANY_TLD);
-                        if (mimes == null) {
-                            mimes = new HashMap<>();
-                            tldMimes.put(ANY_TLD, mimes);
+                        MimeMatcher mimeMatcher = tldMimes.get(ANY_TLD);
+                        if (mimeMatcher == null) {
+                            mimeMatcher = new MimeMatcher();
+                            tldMimes.put(ANY_TLD, mimeMatcher);
                         }
-                        if (mime.startsWith("/") && mime.endsWith("/")) {
-                            mime = mime.substring(1, mime.length() - 1);
-                        } else {
-                            mime = "(?i)\\A" + mime + "\\Z";
-                        }
-                        Matcher mimeMatcher = Pattern.compile(mime).matcher("");
-                        mimes.put(mimeMatcher, f);
+                        mimeMatcher.addMime(mime, f);
                     } catch (NumberFormatException e) {
                         System.err.println("couldn't parse " + cols[1] + " for: " + mime);
                     }
                 } else if (cols.length == 3) {
+                    if (lastNumCols > -1 && lastNumCols != 2) {
+                        throw new IllegalArgumentException("Last row had" + lastNumCols +
+                                "columns, but this row has 3.  Every row must have the same number of columns");
+                    }
+                    lastNumCols = 3;
+                    includesTLD = true;
                     String tld = cols[0].trim();
                     String mime = cols[1].trim();
                     if (mime.equalsIgnoreCase(MIME_COL_HEADER)) {
@@ -109,18 +136,12 @@ public class DownSample extends AbstractRecordProcessor {
                     float f = -1.0f;
                     try {
                         f = Float.parseFloat(cols[2]);
-                        Map<Matcher, Float> mimes = tldMimes.get(tld);
-                        if (mimes == null) {
-                            mimes = new HashMap<>();
-                            tldMimes.put(tld, mimes);
+                        MimeMatcher mimeMatcher = tldMimes.get(tld);
+                        if (mimeMatcher == null) {
+                            mimeMatcher = new MimeMatcher();
+                            tldMimes.put(tld, mimeMatcher);
                         }
-                        if (mime.startsWith("/") && mime.endsWith("/")) {
-                            mime = mime.substring(1, mime.length() - 1);
-                        } else {
-                            mime = "(?i)\\A" + mime + "\\Z";
-                        }
-                        Matcher mimeMatcher = Pattern.compile(mime).matcher("");
-                        mimes.put(mimeMatcher, f);
+                        mimeMatcher.addMime(mime, f);
                     } catch (NumberFormatException e) {
                         System.err.println("couldn't parse " + cols[1] + " for: " + mime);
                     }
@@ -145,7 +166,7 @@ public class DownSample extends AbstractRecordProcessor {
 
     @Override
     public void usage() {
-        System.out.println("DownSample <sample_rates_file> <output_directory>");
+        System.out.println("DownSample <sample_rates_file> <output_directory> <optional>detected_only|header_only</optional>");
         System.out.println("Sample rates file should be a UTF-8 tab delimited file (with no escaped tabs)");
         System.out.println("and it should have at least 2 columns: mime\tfloat");
         System.out.println("alternatively, it can have 3 columns: topleveldomain\tmime\tfloat");
@@ -162,61 +183,109 @@ public class DownSample extends AbstractRecordProcessor {
             } else if (r.getUrl().endsWith("robots.txt")) {
                 continue;
             }
-            String mime = CCIndexRecord.normalizeMime(r.getMime());
+            String headerMime = CCIndexRecord.normalizeMime(r.getMime());
             String detectedMime = CCIndexRecord.normalizeMime(r.getMimeDetected());
             String tld = CCIndexRecord.getTLD(r.getUrl());
 
-            boolean select = shouldSelect(tld, mime, detectedMime);
+            boolean select = shouldSelect(tld, headerMime, detectedMime);
 
             if (select == true) {
+                selected++;
                 gson.toJson(r, writer);
                 writer.write("\n");
             } else {
                 //System.out.println("IGNORE: "+m);
             }
+            total++;
         }
     }
 
-    private boolean shouldSelect(String tld, String mime, String detectedMime) {
+    private boolean shouldSelect(String tld, String headerMime, String detectedMime) {
         //try to find the sampling % for the actual tld
         if (!StringUtils.isBlank(tld) && tldMimes.containsKey(tld)) {
-            Map<Matcher, Float> mimes = tldMimes.get(tld);
-            for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
-                Matcher mimeMatcher = e.getKey();
-                if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
-                    float rf = random.nextFloat();
-                    if (e.getValue() >= 1.0 || rf <= e.getValue()) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-            }
-        }
-        //if there was no tld, or no specific mime pattern
-        //had a hit, apply the any_tld sampling rules
-        Map<Matcher, Float> mimes = tldMimes.get(ANY_TLD);
-        if (mimes != null) {
-            for (Map.Entry<Matcher, Float> e : mimes.entrySet()) {
-                Matcher mimeMatcher = e.getKey();
-                if (mimeMatcher.reset(mime).find() || mimeMatcher.reset(detectedMime).find()) {
-                    float rf = random.nextFloat();
-                    if (e.getValue() >= 1.0 || rf <= e.getValue()) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
+            MimeMatcher mimeMatcher = tldMimes.get(tld);
+            if (mimeMatcher != null) {
+                return mimeMatcher.matches(headerMime, detectedMime);
             }
         }
 
+        //if there was no tld, or no specific mime pattern
+        //had a hit, apply the any_tld sampling rules
+        MimeMatcher mimeMatcher = tldMimes.get(ANY_TLD);
+        if (mimeMatcher != null) {
+            return mimeMatcher.matches(headerMime, detectedMime);
+        }
         return false;
     }
 
 
     @Override
     public void close() throws IOException {
+        System.out.println(selected + " out of "+total);
         writer.flush();
         writer.close();
+    }
+
+    private class MimeMatcher {
+        private final Random random = new Random();
+        Map<String, Float> exactMatches = new HashMap<>();
+        Map<Matcher, Float> regexMatches = new HashMap<>();
+        Set<String> shouldIgnore = new HashSet<>();
+
+        void addMime(String mime, float samplingRate) {
+            if (mime.startsWith("/") && mime.endsWith("/")) {
+                mime = mime.substring(1, mime.length() - 1);
+                Matcher mimeMatcher = Pattern.compile(mime).matcher("");
+                regexMatches.put(mimeMatcher, samplingRate);
+
+            } else {
+                exactMatches.put(mime, samplingRate);
+            }
+        }
+
+        boolean matches(String headerMime, String detectedMime) {
+            switch (headerOrDetected) {
+                case HEADER_ONLY:
+                    return matchesSingle(headerMime);
+                case DETECTED_ONLY:
+                    return matchesSingle(detectedMime);
+                case HEADER_OR_DETECTED:
+                    return matchesSingle(headerMime) || matchesSingle(detectedMime);
+            }
+            return false;
+        }
+
+        private boolean headerOrDetected(String headerMime, String detectedMime) {
+            return matchesSingle(headerMime) || matchesSingle(detectedMime);
+        }
+
+        private boolean matchesSingle(String mime) {
+            if (shouldIgnore.contains(mime)) {
+                return false;
+            }
+            boolean found = false;
+            if (exactMatches.containsKey(mime)) {
+                float p = exactMatches.get(mime);
+                if (p >= 1.0f || random.nextFloat() < p) {
+                    return true;
+                }
+                return false;
+            }
+
+            for (Map.Entry<Matcher, Float> e : regexMatches.entrySet()) {
+                if (e.getKey().reset(mime).find()) {
+                    found = true;
+                    float p = exactMatches.get(mime);
+                    if (p >= 1.0f || random.nextFloat() < p) {
+                        return true;
+                    }
+                    break;
+                }
+            }
+            if (!found) {
+                shouldIgnore.add(mime);
+            }
+            return false;
+        }
     }
 }
