@@ -21,7 +21,10 @@ import org.apache.commons.codec.binary.Base32;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,6 +42,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the file by mime name
  */
 public class WReGetter {
+    private static final long MAX_FILE_LENGTH = 50_000_000;
+    private static final int MAX_MILLIS = 120_000;
     private final Base32 base32 = new Base32();
     static AtomicInteger WGET_COUNTER = new AtomicInteger(0);
 
@@ -50,13 +55,13 @@ public class WReGetter {
     }
 
     private static void usage() {
-        System.out.println("java -jar *.jar org.mitre.commoncrawl.WReGetter <numThreads> <digest_url_file> <outputdir>");
-        System.out.println("The <digest_url_file> is a tab-delimited UTF-8 file with no escaped tabs");
-        System.out.println("It has two columns: digest\\turl");
+        System.out.println("java -cp *.jar org.mitre.commoncrawl.WReGetter <numThreads> <digest_url_file> <outputdir> <table_outputdir>");
+        System.out.println("The <url_digest_file> is a tab-delimited UTF-8 file with no escaped tabs");
+        System.out.println("It has two columns: url\\tdigest");
     }
 
     private void execute(String[] args) throws IOException {
-        if (args.length != 3) {
+        if (args.length != 4) {
             usage();
             System.exit(1);
         }
@@ -70,6 +75,10 @@ public class WReGetter {
         QueueFiller filler = new QueueFiller(r, queue, numThreads);
         new Thread(filler).start();
         rootDir = Paths.get(args[2]);
+        Path tableDir = Paths.get(args[3]);
+        if (! Files.isDirectory(tableDir)) {
+            Files.createDirectories(tableDir);
+        }
         System.out.println("creating thread pool");
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
         ExecutorCompletionService<Integer> executorCompletionService = new ExecutorCompletionService<Integer>(executorService);
@@ -77,7 +86,7 @@ public class WReGetter {
 
         for (int i = 0; i < numThreads; i++) {
             System.out.println("submitted "+i);
-            executorCompletionService.submit(new WGetter(queue));
+            executorCompletionService.submit(new WGetter(queue, tableDir));
         }
 
         int completed = 0;
@@ -86,6 +95,11 @@ public class WReGetter {
                 Future<Integer> future = executorCompletionService.poll(1, TimeUnit.SECONDS);
                 if (future != null) {
                     completed++;
+                    try {
+                        future.get();
+                    } catch (Throwable t) {
+                        t.printStackTrace();
+                    }
                 }
             } catch (InterruptedException e) {
 
@@ -94,8 +108,6 @@ public class WReGetter {
         executorService.shutdown();
         executorService.shutdownNow();
         System.exit(0);
-
-
     }
 
     private class QueueFiller implements Runnable {
@@ -115,6 +127,8 @@ public class WReGetter {
 
             try{
                 String line = reader.readLine();
+                //has header
+                line = reader.readLine();
                 while (line != null) {
 
                     String[] cols = line.split("\t");
@@ -123,8 +137,8 @@ public class WReGetter {
                     if (cols.length == 1) {
                         url = cols[0];
                     } else {
-                        digest = cols[0];
-                        url = cols[1];
+                        url = cols[0];
+                        digest = cols[1];
                     }
                     DigestURLPair p = new DigestURLPair(digest, url);
                     //hang forever
@@ -164,84 +178,100 @@ public class WReGetter {
     private class WGetter implements Callable<Integer> {
         int id = WGET_COUNTER.getAndIncrement();
         final ArrayBlockingQueue<DigestURLPair> queue;
-        WGetter(ArrayBlockingQueue<DigestURLPair> q) {
+        final BufferedWriter writer;
+
+        WGetter(ArrayBlockingQueue<DigestURLPair> q, Path reportingDir) throws IOException {
             this.queue = q;
             System.out.println("WGETTER STARTED");
+            writer = Files.newBufferedWriter(reportingDir.resolve("status_table_" + id + ".txt"), StandardCharsets.UTF_8);
         }
-
 
         @Override
         public Integer call() throws Exception {
             while (true) {
                 try {
                     DigestURLPair p = queue.poll(1, TimeUnit.SECONDS);
-                    System.out.println("WGOT: "+id + " : " + p.url);
+                    System.out.println("WGOT: " + id + " : " + p.url);
                     if (p instanceof DigestURLPairPoison) {
-                        return 1;
+                        break;
                     }
                     wget(p);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
+                    break;
                 }
             }
+            writer.flush();
+            writer.close();
+            return 1;
         }
 
         private void wget(DigestURLPair p) throws IOException {
-            System.out.println(id + " going to get 1 "+p.url);
             ProcessBuilder pb = new ProcessBuilder();
             pb.inheritIO();
             String digest = p.digest;
-            Path targetPath = null;
-            boolean needToComputeDigest = false;
-            if (digest != null) {
-                targetPath = rootDir.resolve(p.digest.substring(0,2)+"/"+p.digest);
-                if (Files.isRegularFile(targetPath)) {
-                    return;
-                }
-                Files.createDirectories(targetPath.getParent());
-            } else {
-                targetPath = Files.createTempFile("wgetter", "tmp");
-                needToComputeDigest = true;
-            }
-            System.out.println(id + " going to get "+p.url);
-            String[] args = new String[]{
-                    "wget",
-                    "-t", "1", //just try once
-                    "-O",
-                    targetPath.toString(),
-                    p.url
-            };
-            pb.command(args);
-            Process process = pb.start();
-            int exit = -1;
-            System.out.println(id + " about to start: "+p.digest + " : "+p.url);
-            while (true) {
-                try {
-                    exit = process.exitValue();
-                    break;
-                } catch (IllegalThreadStateException e) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e2) {
+            Path targetPath = Files.createTempFile("wgetter-", ".tmp");
+            try {
+                System.out.println(id + " going to get " + p.url);
 
+                String[] args = new String[]{
+                        "wget",
+                        "-t", "1", //just try once
+                        "-O",
+                        targetPath.toString(),
+                        p.url
+                };
+                pb.command(args);
+                Process process = pb.start();
+                int exit = -1;
+                long started = System.currentTimeMillis();
+                long elapsed = System.currentTimeMillis() - started;
+                boolean timedOut = false;
+                while (elapsed < MAX_MILLIS) {
+                    try {
+                        exit = process.exitValue();
+                        break;
+                    } catch (IllegalThreadStateException e) {
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e2) {
+                            break;
+                        }
+                    }
+                    elapsed = System.currentTimeMillis() - started;
+                }
+                if (exit == -1 || elapsed >= MAX_MILLIS) {
+                    process.destroyForcibly();
+                }
+                System.out.println("FINISHED: " + elapsed + " : " + exit);
+                String status = (elapsed <= MAX_MILLIS && exit == 0) ? "SUCCESS" : "FAILED";
+                String newDigest = "";
+                long length = -1;
+                if ("SUCCESS".equals(status)) {
+                    length = Files.size(targetPath);
+                    if (length > MAX_FILE_LENGTH) {
+                        status = "TOO_LONG";
+                    } else {
+                        try (InputStream is = Files.newInputStream(targetPath)) {
+                            newDigest = base32.encodeToString(DigestUtils.sha1(is));
+                        }
+                        System.out.println(id + " " + digest + " -> " + newDigest);
+                        Path repoTargetFile = rootDir.resolve(newDigest.substring(0, 2) + "/" + newDigest);
+                        if (!Files.exists(repoTargetFile)) {
+                            Files.createDirectories(repoTargetFile.getParent());
+                            Files.copy(targetPath, repoTargetFile);
+                        }
                     }
                 }
-            }
-            if (needToComputeDigest) {
-                digest = base32.encodeToString(DigestUtils.sha1(Files.newInputStream(targetPath)));
-                System.out.println(id + " digest: "+digest);
-                Path repoTargetFile = rootDir.resolve(digest.substring(0,2)+"/"+digest);
-                if (Files.exists(repoTargetFile)) {
-                    Files.delete(targetPath);
-                    System.out.println("Already had file: "+digest);
-                    return;
-                }
-                Files.createDirectories(repoTargetFile.getParent());
-                Files.copy(targetPath, repoTargetFile);
+                writer.write(clean(p.url) + "\t" +
+                        clean(p.digest) + "\t" +
+                        clean(newDigest) + "\t" +
+                        status + "\t" +
+                        Long.toString(length) + "\n");
+                writer.flush();
+            } finally {
                 Files.delete(targetPath);
             }
-
-            System.out.println(id + " finished: "+digest + " : "+p.url);
         }
     }
 
@@ -261,4 +291,7 @@ public class WReGetter {
         }
     }
 
+    private static String clean (String cell) {
+        return CCGetter.clean(cell);
+    }
 }

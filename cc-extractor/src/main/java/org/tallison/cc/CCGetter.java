@@ -313,12 +313,21 @@ public class CCGetter {
         return "";
     }
 
-    private String clean(String s) {
+    static String clean(String s) {
         //make sure that the string doesn't contain \t or new line
         if (s == null) {
             return "";
         }
 
+        if (s.startsWith("\"")) {
+            s = s.substring(1);
+        }
+        if (s.endsWith("\"")) {
+            s = s.substring(0,s.length()-1);
+        }
+        if (s.contains("\"")) {
+            s = "\""+s.replaceAll("\"", "\"\"")+"\"";
+        }
         return s.replaceAll("\\s", " ");
     }
 
