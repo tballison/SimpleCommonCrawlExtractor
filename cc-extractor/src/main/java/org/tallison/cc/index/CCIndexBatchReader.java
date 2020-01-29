@@ -66,6 +66,7 @@ public class CCIndexBatchReader {
 
         ArrayBlockingQueue<Path> paths = new ArrayBlockingQueue<>(gzs.length+numThreads);
         Arrays.sort(gzs);
+        int cnt = 0;
         for (File f : gzs) {
             paths.add(f.toPath());
         }
@@ -89,9 +90,10 @@ public class CCIndexBatchReader {
         while (completed < numThreads) {
             Future<Integer> result = completionService.poll(1, TimeUnit.SECONDS);
             if (result != null) {
+                result.get();
                 completed++;
             } else {
-                System.out.println("In completion loop: "+completed);
+                //System.out.println("In completion loop: "+completed);
             }
         }
         executorService.shutdown();

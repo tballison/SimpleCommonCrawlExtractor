@@ -28,6 +28,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.GZIPInputStream;
 
 public class CCIndexReader {
@@ -36,11 +39,10 @@ public class CCIndexReader {
     public void process(Path p, IndexRecordProcessor processor) {
 
         System.err.println("processing "+p.toString() + " :"+count);
-        count++;
-        int count = 0;
         try (InputStream is = new BufferedInputStream(new GZIPInputStream(Files.newInputStream(p)))) {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 String line = reader.readLine();
+                int lines = 0;
                 while (line != null) {
                     try {
                         processor.process(line);

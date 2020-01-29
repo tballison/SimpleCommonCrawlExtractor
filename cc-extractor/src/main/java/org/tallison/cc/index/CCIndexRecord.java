@@ -42,13 +42,14 @@ public class CCIndexRecord {
     private String url;
     private String mime;
     private String mimeDetected;
-    private String status;
+    private Integer status;
     private String digest;
     private Integer length;
     private Integer offset;
     private String filename;
     private String charset;
     private String languages;
+    private String truncated;
 
     public String getUrl() {
         return url;
@@ -58,7 +59,7 @@ public class CCIndexRecord {
         return mime;
     }
 
-    public String getStatus() {
+    public Integer getStatus() {
         return status;
     }
 
@@ -90,14 +91,18 @@ public class CCIndexRecord {
         return languages;
     }
 
+    public String getTruncated() {
+        return truncated;
+    }
+
     public static String normalizeMime(String s) {
         if (s == null) {
-            return s;
+            return null;
         }
         s = s.toLowerCase(Locale.ENGLISH);
         s = s.replaceAll("^\"|\"$", "");
         s = s.replaceAll("\\s+", " ");
-        return s;
+        return s.trim();
     }
 
 
@@ -158,6 +163,7 @@ public class CCIndexRecord {
     }
 
     private static CCIndexRecord parseRecord(String row, AtomicInteger i) {
+
         int urlI = row.indexOf(' ',i.get());
         int dateI = row.indexOf(' ', urlI+1);
         String json = null;
