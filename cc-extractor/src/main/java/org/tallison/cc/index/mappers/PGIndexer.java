@@ -30,39 +30,63 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.apache.commons.lang3.StringUtils.truncate;
 
 public class PGIndexer extends AbstractRecordProcessor {
+    private static final int MAX_URL_LENGTH = 10000;
     static Logger LOGGER = Logger.getLogger(PGIndexer.class);
     PreparedStatement insert;
     Connection connection;
-    private static final AtomicInteger ADDED = new AtomicInteger(0);
-    static AtomicInteger COUNTER = new AtomicInteger(0);
+    private static final AtomicLong ADDED = new AtomicLong(0);
+    private static final AtomicLong CONSIDERED = new AtomicLong(0);
+    static AtomicInteger THREAD_COUNTER = new AtomicInteger(-1);
+    static AtomicInteger THREAD_CLOSED = new AtomicInteger(-1);
+
     private static final StringCache MIME_CACHE = new StringCache("mimes", 2000);
     private static final StringCache DETECTED_MIME_CACHE = new StringCache("detected_mimes", 2000);
     private static final StringCache LANGUAGE_CACHE = new StringCache("languages", 2000);
     private static final StringCache TRUNCATED_CACHE = new StringCache("truncated", 12);
+    private static final StringCache WARC_FILENAME_CACHE =
+            new StringCache("warc_file_name", 200);
+
     private static final long STARTED = System.currentTimeMillis();
 
-    private final int id = COUNTER.getAndIncrement();
-    private int added = 0;
+    private final int id = THREAD_COUNTER.incrementAndGet();
+    private long added = 0;
     @Override
     public void init(String[] args) throws Exception {
         super.init(args);
 
-        String user = args[0];
-        String pw = args[1];
-        String url = "jdbc:postgresql://localhost/commoncrawl?user="+user+"&password="+pw;
+        String url = null;
+        if (args.length == 1) {
+            url = args[0];
+        } else if (args.length == 2) {
+            String user = args[0];
+            String pw = args[1];
+            url = "jdbc:postgresql://localhost/commoncrawl?user="+user+"&password="+pw;
+        } else if (args.length == 3) {
+            String user = args[0];
+            String pw = args[1];
+            Integer port = Integer.parseInt(args[2]);
+            url = "jdbc:postgresql://localhost:"+port+"/commoncrawl?user="+user+"&password="+pw;
+        }
+        System.out.println("trying to connect: "+url);
         connection = DriverManager.getConnection(url);
         connection.setAutoCommit(false);
-        insert = connection.prepareStatement("insert into urls (digest, mime, mime_detected, charset, " +
-                "languages, status, length, truncated) values" +
-                " (?,?,?,?,?,?,?,?)");
-        initTables(MIME_CACHE, DETECTED_MIME_CACHE, LANGUAGE_CACHE, TRUNCATED_CACHE);
+        insert = connection.prepareStatement("insert into urls (" +
+                "url,"+
+                "digest, mime, mime_detected, charset, " +
+                "languages, status, truncated, warc_file_name, warc_offset, warc_length) values" +
+                " (" +
+                "?," +
+                "?,?,?,?,?,?,?,?,?,?)");
+        initTables(MIME_CACHE, DETECTED_MIME_CACHE, LANGUAGE_CACHE, TRUNCATED_CACHE, WARC_FILENAME_CACHE);
     }
 
     private synchronized void initTables(StringCache ... caches) throws SQLException {
@@ -70,15 +94,17 @@ public class PGIndexer extends AbstractRecordProcessor {
             connection.createStatement().execute("drop table if exists urls");
             connection.createStatement().execute("create table urls " +
                     "(" +
-                    //"url varchar(60000)," +
+                    "url varchar("+MAX_URL_LENGTH+")," +
                     " digest varchar(64)," +
                     " mime integer," +
                     " mime_detected integer," +
                     " charset varchar(64)," +
                     " languages integer,"+
                     " status integer,"+
-                    " length integer," +
-                    " truncated integer);");
+                    " truncated integer," +
+                    " warc_file_name integer," +
+                    " warc_offset bigint," +
+                    " warc_length bigint);");
 
             for (StringCache cache : caches) {
                 connection.createStatement().execute("drop table if exists "+cache.getTableName());
@@ -118,21 +144,30 @@ public class PGIndexer extends AbstractRecordProcessor {
         for (CCIndexRecord r : records) {
             String mime = CCIndexRecord.normalizeMime(r.getMime());
             String mimeDetected = CCIndexRecord.normalizeMime(r.getMimeDetected());
+            CONSIDERED.incrementAndGet();
+            String url = r.getUrl();
+            String u = (url == null) ? "" : url.toLowerCase(Locale.US);
+
+            /*if (mimeDetected != null &&
+                    (mimeDetected.equals("text/html") || mimeDetected.equals("application/xhtml+xml"))) {
+                return;
+            }*/
             //if (mime.contains("onenote") || mimeDetected.contains("onenote")) {
                 try {
-                    int total= ADDED.getAndIncrement();
+                    long total= ADDED.getAndIncrement();
                     if (++added % 100000 == 0) {
                         insert.executeBatch();
                         connection.commit();
                         long elapsed = System.currentTimeMillis()-STARTED;
-                        double elapsedSec = elapsed/1000;
+                        double elapsedSec = (double)elapsed/(double)1000;
                         double per = (double)total/elapsedSec;
+                        System.out.println("considered: "+CONSIDERED.get());
                         System.out.println("committing "+added+ " ("+
                                         total+") in "+elapsed +
                                 " ms " + per + " recs/per second");
                     }
                     int i = 0;
-//                    insert.setString(++i, truncate(r.getUrl(), 60000));
+                    insert.setString(++i, truncate(r.getUrl(), MAX_URL_LENGTH));
                     insert.setString(++i, r.getDigest());
                     insert.setInt(++i, MIME_CACHE.getInt(mime));
                     insert.setInt(++i, DETECTED_MIME_CACHE.getInt(mimeDetected));
@@ -143,8 +178,11 @@ public class PGIndexer extends AbstractRecordProcessor {
                     }
                     insert.setInt(++i, LANGUAGE_CACHE.getInt(getPrimaryLanguage(r.getLanguages())));
                     insert.setInt(++i, r.getStatus());
-                    insert.setInt(++i, r.getLength());
+//                    insert.setInt(++i, r.getLength());
                     insert.setInt(++i, TRUNCATED_CACHE.getInt(r.getTruncated()));
+                    insert.setInt(++i, WARC_FILENAME_CACHE.getInt(r.getFilename()));
+                    insert.setInt(++i, r.getOffset());
+                    insert.setInt(++i, r.getLength());
                     insert.addBatch();
                     LOGGER.debug(
                             StringUtils.joinWith("\t",
@@ -174,7 +212,8 @@ public class PGIndexer extends AbstractRecordProcessor {
     @Override
     public void close() throws IOException {
         try {
-            if (id == 0) {
+            int closed = THREAD_CLOSED.incrementAndGet();
+            if (closed == THREAD_COUNTER.get()) {
                 for (StringCache cache : new StringCache[]{MIME_CACHE, DETECTED_MIME_CACHE, TRUNCATED_CACHE, LANGUAGE_CACHE}) {
                     cache.close();
                 }

@@ -18,10 +18,12 @@
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import org.apache.tika.mime.MediaType;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.tallison.cc.index.CCIndexRecord;
 import org.tallison.cc.warc.Extractor;
 import org.tallison.cc.warc.ExtractorConfig;
 

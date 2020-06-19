@@ -166,30 +166,43 @@ public class CCIndexRecord {
 
         int urlI = row.indexOf(' ',i.get());
         int dateI = row.indexOf(' ', urlI+1);
-        String json = null;
         if (row.indexOf("{") == 0) {
-            json = row;
+            try {
+                return gson.fromJson(row, CCIndexRecord.class);
+            } catch (JsonSyntaxException e) {
+                System.out.println(">>>"+row+"<<<");
+                e.printStackTrace();
+                return null;
+            }
         } else {
             if (dateI < 0) {
                 return null;
             }
+            List<Integer> ends = new ArrayList<>();
             int end = row.indexOf('}', dateI + 1);
-            if (end == -1) {
+
+            while (end > -1) {
+                ends.add(end);
+                end = row.indexOf('}', end + 1);
+            }
+            if (ends.size() == 0) {
                 //barf
                 return null;
             }
-            i.set(end + 1);
-            json = row.substring(dateI, end+1);
-        }
-        CCIndexRecord r;
-        try {
-            r = gson.fromJson(json, CCIndexRecord.class);
-        } catch (JsonSyntaxException e) {
+            JsonSyntaxException ex = null;
+            for (int thisEnd : ends) {
+                String json = row.substring(dateI, thisEnd+1);
+                try {
+                    CCIndexRecord record = gson.fromJson(json, CCIndexRecord.class);
+                    i.set(thisEnd + 1);
+                    return record;
+                } catch (JsonSyntaxException e) {
+                }
+            }
             System.out.println(">>>"+row+"<<<");
-            e.printStackTrace();
+            ex.printStackTrace();
             return null;
         }
-        return r;
     }
 
     @Override

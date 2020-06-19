@@ -60,6 +60,8 @@ public class CCIndexReader {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.err.println("finished processing "+p.toString() + " :"+count);
+
     }
 
     public static void main(String[] args) throws Exception {
